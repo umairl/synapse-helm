@@ -1,0 +1,9 @@
+dependencies:
+- name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 15.5.38
+- name: element
+  repository: https://remram44.github.io/matrix-helm
+  version: 1.1.10
+digest: sha256:b6344349987ae0f4eaf57d914b718cdea119e08fa3b39dba5fbc62f4dad33b55
+generated: "2025-05-10T01:49:15.5362232+05:00"

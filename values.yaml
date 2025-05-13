@@ -1,0 +1,54 @@
+# Synapse (Matrix) Configuration
+matrix:
+  enabled: true
+  homeserverConfig:
+    # server_name and public_baseurl removed to be overridden by API
+    email:
+      app_name: EdgeInfra Chat
+    additional_config: |
+      listeners:
+        - port: 8008
+          tls: false
+          type: http
+          x_forwarded: true
+          resources:
+            - names: [client, federation]
+              compress: true
+
+  postgresql:
+    enabled: true
+    auth:
+      username: matrix
+      password: "dbpass0987"  # Will be overridden by the API
+      database: matrix
+    persistence:
+      enabled: true
+      storageClass: gp2
+      size: 8Gi
+      accessMode: ReadWriteOnce
+
+  use_proxy: true
+
+  service:
+    type: ClusterIP
+    ports:
+      - name: http
+        port: 80  # Ingress port
+        targetPort: 8008  # Synapse internal port
+
+  ingress:
+    enabled: true
+    className: nginx
+    # hosts and tls removed to be overridden by API
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+# Cert Manager Configuration for Let's Encrypt
+certManager:
+  email: "mangobee43@gmail.com"  # Replace with your Let's Encrypt registration email
+
+# Element Configuration (Disabled)
+element:
+  enabled: false

@@ -1,0 +1,199 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "matrix.fullname" . }}
+  labels:
+    {{- include "matrix.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "matrix.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "matrix.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if ne .Values.priorityClassName nil }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              printf '%s' "$1" | python - || exit 1
+
+              # Run synapse
+              exec python -m synapse.app.homeserver --config-path /tmp/synapse.yaml
+            - "--"
+            - |
+              import os
+              import yaml
+
+              # Load configuration from configmap
+              with open("/etc/synapse/config/homeserver.yaml") as fp:
+                  config = yaml.safe_load(fp)
+
+              # Set default config
+              with open("/etc/synapse/config/homeserver-defaults.yaml") as fp:
+                  defaults = yaml.safe_load(fp)
+              for k, v in defaults.items():
+                  if k not in config:
+                      config[k] = defaults[k]
+
+              {{- if .Values.postgresql.enabled }}
+              # Set postgresql config
+              assert config["database"]["name"] == "psycopg2"
+              config["database"]["args"]["user"] = os.environ["PG_USER"]
+              with open("/etc/synapse/postgresql-password") as fp:
+                  config["database"]["args"]["password"] = fp.read().strip()
+              config["database"]["args"]["dbname"] = os.environ["PG_DB"]
+              config["database"]["args"]["host"] = os.environ["PG_HOST"]
+              {{- end }}
+
+              def setConfig(config, key, data):
+                  components = key.split('.')
+                  for component in components[:-1]:
+                      if isinstance(config, list):
+                          component = int(component, 10)
+                      config = config[component]
+                  config[components[-1]] = data
+              {{- range $key, $config := .Values.extraConfig }}
+
+              # Set extra config: {{ $key }}
+              {{- if $config.secret }}
+              with open({{ printf "/etc/synapse/extra/%d/%s" $key $config.secret.key | quote }}) as fp:
+              {{- if $config.secret.yaml }}
+                  data = yaml.safe_load(fp)
+              {{- else }}
+                  data = fp.read().strip()
+              {{- end }}
+              {{- else if $config.configMap }}
+              with open({{ printf "/etc/synapse/extra/%d/%s" $key $config.configMap.key | quote }}) as fp:
+              {{- if $config.configMap.yaml }}
+                  data = yaml.safe_load(fp)
+              {{- else }}
+                  data = fp.read().strip()
+              {{- end }}
+              {{- end }}
+              setConfig(config, {{ $config.key | quote }}, data)
+              {{- end }}
+
+              # Write final config
+              os.umask(0o077)
+              with open("/tmp/synapse.yaml", "w") as fp:
+                  yaml.dump(config, fp)
+          {{- if .Values.postgresql.enabled }}
+          env:
+            - name: PG_USER
+              value: "{{ include "postgresql.v1.username" .Subcharts.postgresql }}"
+            - name: PG_DB
+              value: "{{ include "postgresql.v1.database" .Subcharts.postgresql }}"
+            - name: PG_HOST
+              value: "{{ include "postgresql.v1.primary.fullname" .Subcharts.postgresql }}"
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8008
+              protocol: TCP
+            {{- if .Values.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /etc/synapse/config
+              name: config
+            - mountPath: /etc/synapse/secret
+              name: secret
+            {{- if .Values.postgresql.enabled }}
+            - mountPath: /etc/synapse/postgresql-password
+              name: postgresql-password
+              readOnly: true
+              subPath: password
+            {{- end }}
+            {{- range $key, $config := .Values.extraConfig }}
+            - name: extra-{{ $key }}
+              mountPath: /etc/synapse/extra/{{ $key }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 300
+            periodSeconds: 15
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+            failureThreshold: 4
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: "{{ .Values.storage.persistentClaimName | default (include "matrix.fullname" .) }}"
+        - name: config
+          configMap:
+            name: {{ include "matrix.fullname" . }}
+        - name: secret
+          secret:
+            secretName: {{ .Values.secret.name | default (include "matrix.fullname" .) | quote }}
+        {{- if .Values.postgresql.enabled }}
+        - name: postgresql-password
+          secret:
+            secretName: "{{ include "postgresql.v1.secretName" .Subcharts.postgresql }}"
+            items:
+              - key: "{{ include "postgresql.v1.userPasswordKey" .Subcharts.postgresql }}"
+                path: password
+        {{- end }}
+        {{- range $key, $config := .Values.extraConfig }}
+        - name: extra-{{ $key }}
+          {{- if $config.secret }}
+          secret:
+            secretName: {{ $config.secret.name }}
+          {{- else if $config.configMap }}
+          configMap:
+            name: {{ $config.configMap.name }}
+          {{- end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

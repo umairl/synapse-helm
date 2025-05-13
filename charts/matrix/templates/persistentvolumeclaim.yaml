@@ -1,0 +1,19 @@
+{{- if .Values.storage.create }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: "{{ .Values.storage.persistentClaimName | default (include "matrix.fullname" .) }}"
+  labels:
+    {{- include "matrix.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  {{- if ne .Values.storage.storageClass nil }}
+  storageClassName: {{ .Values.storage.storageClass | quote }}
+  {{- end }}
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.capacity }}
+{{- end }}

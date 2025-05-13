@@ -1,0 +1,174 @@
+# Default values for matrix.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/element-hq/synapse
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+additionalLabels: {}
+
+homeserverConfig:
+  # For more information on how to configure Synapse, including a complete accounting of
+  # each option, go to docs/usage/configuration/config_documentation.md or
+  # https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
+
+  # server_name, public_baseurl, and web_client_location removed to be overridden by API
+
+  # Database configuration
+  database:
+    name: psycopg2
+    args:
+      # Overridden if postgresql is enabled
+      user: matrix
+      password: "dbpass0987"  # Will be overridden by the API
+      dbname: matrix
+      host: postgres
+    cp_min: 5
+    cp_max: 10
+
+  # Email configuration
+  email:
+    app_name: EdgeInfra Chat
+    client_base_url: https://matrixtoo.edgeinfra.site/
+    enable_notifs: false
+    notif_from: EdgeInfra <matrix@edgeinfra.site>
+
+  # https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html#room_list_publication_rules
+  room_list_publication_rules: [] # Default deny
+
+  # Miscellaneous
+  auto_join_rooms: []
+  enable_registration: false
+  enable_registration_without_verification: false
+  trusted_key_servers:
+    - server_name: "matrix.org"
+  report_stats: false
+
+# Set additional config from secrets or configmaps
+extraConfig: []
+#  - key: email.smtp_pass
+#    secret:
+#      yaml: false # The string will be used directly
+#      name: matrix-email
+#      key: password
+#  - key: auto_join_rooms
+#    configMap:
+#      yaml: true # The string will be loaded as YAML
+#      name: matrix-rooms
+#      key: rooms
+
+logConfig:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    precise:
+      format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: precise
+  loggers:
+    synapse.storage.SQL:
+      # beware: increasing this to DEBUG will make synapse log sensitive
+      # information such as access tokens.
+      level: INFO
+  root:
+    level: INFO
+    handlers: [console]
+
+# Secret containing form_secret, macaroon_secret_key,
+# registration_shared_secret, and signing.key
+secret:
+  # Override the secret's name whose default is the release name
+  name: ""
+  # If true, a job will be run to create the secret if it doesn't exist
+  generate: true
+  # Additional annotations for the job creating the secret (if generate is true)
+  jobAnnotations: {}
+
+# This creates a headless service for metrics collection
+metrics:
+  enabled: false
+  port: 8080
+
+storage:
+  create: true
+  # Override the persistentvolumeclaim's name whose default is the release name
+  persistentClaimName: ""
+  storageClass: null
+  capacity: 10Gi
+
+priorityClassName: null
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 991
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  # hosts and tls removed to be overridden by API
+
+extraContainers: []
+
+extraVolumes: []
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+element:
+  enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    username: matrix
+    database: matrix
+  primary:
+    initdb:
+      args: --encoding=UTF8
+    extraEnvVars:
+      - name: LC_COLLATE
+        value: C
+      - name: LC_CTYPE
+        value: C

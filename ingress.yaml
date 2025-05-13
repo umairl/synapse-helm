@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: matrix-synapse-ingress
+  namespace: matrix
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    # Hosts should be dynamically set by the API; these are placeholders
+    - matrixtoo.edgeinfra.site  # Placeholder, overridden by API
+    - elements.edgeinfra.site  # Placeholder, overridden by API
+    secretName: matrix-tls-new
+  rules:
+  - host: matrixtoo.edgeinfra.site  # Placeholder, overridden by API
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-matrix
+            port:
+              number: 80
+  - host: elements.edgeinfra.site  # Placeholder, overridden by API
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: my-matrix-element
+            port:
+              number: 80

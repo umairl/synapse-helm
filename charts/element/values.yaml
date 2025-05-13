@@ -1,0 +1,107 @@
+# Default values for element.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: docker.io/vectorim/element-web
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+priorityClassName: null
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+
+config:
+  default_server_config:
+    m.homeserver:
+      base_url: https://chart-example.local
+      server_name: Chart Example
+    m.identity_server:
+      base_url: https://vector.im
+  disable_custom_urls: false
+  disable_guests: false
+  disable_login_language_selector: false
+  disable_3pid_login: false
+  force_verification: false
+  brand: "Element"
+  integrations_ui_url: "https://scalar.vector.im/"
+  integrations_rest_url: "https://scalar.vector.im/api"
+  integrations_widgets_urls:
+    - "https://scalar.vector.im/_matrix/integrations/v1"
+    - "https://scalar.vector.im/api"
+    - "https://scalar-staging.vector.im/_matrix/integrations/v1"
+    - "https://scalar-staging.vector.im/api"
+    - "https://scalar-staging.riot.im/scalar/api"
+  default_widget_container_height: 280
+  default_country_code: "GB"
+  show_labs_settings: false
+  features: {}
+  default_federate: true
+  default_theme: "light"
+  room_directory:
+    servers:
+      - "matrix.org"
+  enable_presence_by_hs_url:
+    "https://matrix.org": false
+    "https://matrix-client.matrix.org": false
+  setting_defaults:
+    breadcrumbs: true
+  jitsi:
+    preferred_domain: "meet.element.io"
+  element_call:
+    url: "https://call.element.io"
+    participant_limit: 8
+    brand: "Element Call"
+  map_style_url: "https://api.maptiler.com/maps/streets/style.json?key=fU3vlMsMn4Jb6dnEIFsx"
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  host: chart-example.local
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
